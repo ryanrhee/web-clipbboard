@@ -1,19 +1,24 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { ToastContainer, useToast } from '@/components/Toast';
 
+interface ClipboardState {
+  content: string;
+  contentSource: 'server' | 'user_input';
+  lastServerTimestamp: number;
+}
+
 export default function Home() {
-  const [content, setContent] = useState('');
-  const contentRef = useRef('');
-  const [contentSource, setContentSource] = useState<'server' | 'user_input'>('server');
+  const [clipboardState, setClipboardState] = useState<ClipboardState>({
+    content: '',
+    contentSource: 'server',
+    lastServerTimestamp: 0,
+  });
   const [clipboardId, setClipboardId] = useState('default');
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [lastServerTimestamp, setLastServerTimestamp] = useState(0);
-  const lastServerTimestampRef = useRef(0);
-  const saveTimeoutRef = useRef<NodeJS.Timeout>();
-  const pollIntervalRef = useRef<NodeJS.Timeout>();
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toasts, addToast, removeToast } = useToast();
 
   // Load content on mount and when ID changes
@@ -32,28 +37,32 @@ export default function Home() {
           const serverContent = data.content ?? '';
           const serverTimestamp = data.timestamp || 0;
           
-          console.log('Polling check:', new Date().toISOString(), {
-            serverContent,
-            serverTimestamp,
-            lastServerTimestamp: lastServerTimestampRef.current,
-            currentContent: contentRef.current,
-            contentSource,
-            focused: document.hasFocus(),
-            timestampNewer: serverTimestamp > lastServerTimestampRef.current,
-            contentDifferent: serverContent !== contentRef.current,
-            willUpdate: serverTimestamp > lastServerTimestampRef.current && serverContent !== contentRef.current
+          setClipboardState(prevState => {
+            console.log('Polling check:', new Date().toISOString(), {
+              serverContent,
+              serverTimestamp,
+              lastServerTimestamp: prevState.lastServerTimestamp,
+              currentContent: prevState.content,
+              contentSource: prevState.contentSource,
+              focused: document.hasFocus(),
+              timestampNewer: serverTimestamp > prevState.lastServerTimestamp,
+              contentDifferent: serverContent !== prevState.content,
+              willUpdate: serverTimestamp > prevState.lastServerTimestamp && serverContent !== prevState.content
+            });
+            
+            // Only update if server has newer timestamp and content is different
+            if (serverTimestamp > prevState.lastServerTimestamp && serverContent !== prevState.content) {
+              console.log('Updating content from server:', serverContent);
+              addToast('Content updated from another device', 'info', 2000);
+              return {
+                content: serverContent,
+                contentSource: 'server',
+                lastServerTimestamp: serverTimestamp,
+              };
+            }
+            
+            return prevState;
           });
-          
-          // Only update if server has newer timestamp and content is different
-          if (serverTimestamp > lastServerTimestampRef.current && serverContent !== contentRef.current) {
-            console.log('Updating content from server:', serverContent);
-            setContent(serverContent);
-            contentRef.current = serverContent;
-            setContentSource('server');
-            setLastServerTimestamp(serverTimestamp);
-            lastServerTimestampRef.current = serverTimestamp;
-            addToast('Content updated from another device', 'info', 2000);
-          }
         } catch {
           // Silently handle polling errors
         }
@@ -67,17 +76,12 @@ export default function Home() {
         clearInterval(pollIntervalRef.current);
       }
     };
-  }, [clipboardId]);
+  }, [clipboardId, loadContent, addToast]);
 
   // Auto-save content when it changes (only for user input)
-  useEffect(() => {
-    console.log('Auto-save check:', { content, contentSource, willAutoSave: contentSource === 'user_input' });
+  const autoSave = useCallback((newContent: string) => {
+    console.log('Auto-save triggered for user input:', newContent);
     
-    // Only auto-save if content came from user input
-    if (contentSource !== 'user_input') {
-      return;
-    }
-
     // Clear existing timeout
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -85,40 +89,44 @@ export default function Home() {
     
     // Set new timeout for auto-save (debounced)
     saveTimeoutRef.current = setTimeout(() => {
-      console.log('Auto-saving content:', content);
-      saveContent(content);
+      console.log('Auto-saving content:', newContent);
+      saveContent(newContent);
     }, 500); // Save after 500ms of no typing
-    
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, [content, contentSource, clipboardId]);
+  }, [saveContent]);
 
-  const loadContent = async () => {
-    console.log('Loading content for clipboardId:', clipboardId);
-    setIsLoading(true);
+  const loadContent = useCallback(async () => {
+    console.log('🔥 Loading content for clipboardId:', clipboardId, 'call #', Date.now());
+    
+    
     try {
       const response = await fetch(`/api/clipboard?id=${clipboardId}`);
       const data = await response.json();
       const newContent = data.content ?? '';
       const timestamp = data.timestamp || 0;
-      console.log('Loaded content:', { content: newContent, timestamp });
-      setContent(newContent);
-      contentRef.current = newContent;
-      setContentSource('server');
-      setLastServerTimestamp(timestamp);
-      lastServerTimestampRef.current = timestamp;
-      addToast('Content loaded', 'success', 1500);
-    } catch {
+      console.log('🔥 Loaded content from server:', { content: newContent, timestamp });
+      
+      // Don't overwrite user input - check if user has started typing
+      setClipboardState(prevState => {
+        if (prevState.contentSource === 'user_input') {
+          console.log('🔥 Skipping server content update - user is typing');
+          return prevState;
+        }
+        
+        console.log('🔥 Setting content to:', newContent);
+        return {
+          content: newContent,
+          contentSource: 'server',
+          lastServerTimestamp: timestamp,
+        };
+      });
+      // Don't show toast on content load - it's unnecessary
+    } catch (error) {
+      console.error('Failed to load content:', error);
       addToast('Failed to load content', 'error', 3000);
-    } finally {
-      setIsLoading(false);
     }
-  };
+  }, [clipboardId, addToast]);
 
-  const saveContent = async (contentToSave: string) => {
+  const saveContent = useCallback(async (contentToSave: string) => {
     console.log('Saving content:', contentToSave);
     setIsSaving(true);
     try {
@@ -133,43 +141,26 @@ export default function Home() {
       if (response.ok) {
         // Update our timestamp to reflect the save
         const newTimestamp = Date.now();
-        setLastServerTimestamp(newTimestamp);
-        lastServerTimestampRef.current = newTimestamp;
+        setClipboardState(prevState => ({
+          ...prevState,
+          lastServerTimestamp: newTimestamp,
+        }));
         console.log('Save successful, timestamp:', newTimestamp);
         addToast('Auto-saved', 'success', 1500);
       } else {
         throw new Error('Failed to save');
       }
-    } catch {
+    } catch (error) {
+      console.error('Failed to auto-save:', error);
       addToast('Failed to auto-save', 'error', 3000);
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [clipboardId, addToast]);
 
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(content);
-      addToast('Copied to clipboard!', 'success', 2000);
-    } catch {
-      addToast('Failed to copy', 'error', 2000);
-    }
-  };
-
-  const pasteFromClipboard = async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      setContent(text);
-      contentRef.current = text;
-      setContentSource('user_input');
-      addToast('Pasted from clipboard!', 'success', 2000);
-    } catch {
-      addToast('Failed to paste - please paste manually', 'error', 3000);
-    }
-  };
 
   // Debug: Log current state
-  console.log('Render state:', { content, contentSource, lastServerTimestamp });
+  console.log('Render state:', clipboardState);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 p-4">
@@ -197,12 +188,15 @@ export default function Home() {
             </label>
             <textarea
               id="content"
-              value={content}
+              value={clipboardState.content}
               onChange={(e) => {
                 console.log('Textarea onChange:', e.target.value);
-                setContent(e.target.value);
-                contentRef.current = e.target.value;
-                setContentSource('user_input');
+                setClipboardState(prevState => ({
+                  ...prevState,
+                  content: e.target.value,
+                  contentSource: 'user_input',
+                }));
+                autoSave(e.target.value);
               }}
               className="w-full h-64 px-4 py-3 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
               placeholder="Paste or type your content here..."
