@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Online Clipboard
+
+A simple, real-time online clipboard that allows you to share text content between multiple devices seamlessly. Built with Next.js and featuring automatic synchronization with timestamp-based conflict resolution.
+
+## Features
+
+- **Real-time Sync**: Content automatically synchronizes between devices in real-time
+- **Multi-device Support**: Access your clipboard from any device using a unique ID
+- **Auto-save**: Content is automatically saved as you type (500ms debounce)
+- **Focus-aware Polling**: Smart polling that only runs when windows are unfocused to avoid conflicts
+- **Toast Notifications**: Clean, non-intrusive notifications for sync status
+- **Timestamp-based Conflict Resolution**: Latest changes always win, preventing data loss
+- **Responsive Design**: Works perfectly on desktop and mobile devices
 
 ## Getting Started
 
-First, run the development server:
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Run the development server:
+   ```bash
+   npm run dev
+   ```
+
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+## Usage
+
+1. **Enter a Clipboard ID**: Use the default ID or create a unique one
+2. **Add Content**: Type or paste content into the text area
+3. **Auto-sync**: Content automatically saves and syncs across devices
+4. **Multi-device Access**: Use the same ID on other devices to access your content
+
+## Technical Architecture
+
+### Sync Strategy
+- **Data Source Tracking**: Distinguishes between server updates and user input to prevent feedback loops
+- **Timestamp-based Resolution**: Uses server timestamps to determine the most recent changes
+- **Focus-aware Polling**: Only polls for updates when the window is not focused (every 2 seconds)
+- **Stale Closure Prevention**: Uses refs to ensure polling always has current state values
+
+### Storage
+- **Development**: In-memory storage for local development
+- **Production**: Vercel KV (Redis) for persistent, scalable storage
+- **Automatic Fallback**: Gracefully falls back to in-memory if KV is unavailable
+
+### Components
+- **Toast System**: Custom toast notifications with auto-dismiss and manual close
+- **Controlled Inputs**: React controlled components with proper state management
+- **Error Handling**: Comprehensive error handling with user-friendly messages
+
+## Environment Variables
+
+For production deployment with persistent storage:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+KV_REST_API_URL=your_vercel_kv_url
+KV_REST_API_TOKEN=your_vercel_kv_token
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+If these are not set, the app will use in-memory storage (data won't persist between server restarts).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deployment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Vercel (Recommended)
+1. Connect your GitHub repository to Vercel
+2. Configure KV environment variables
+3. Deploy automatically on push
 
-## Learn More
+### Other Platforms
+The app can be deployed to any platform that supports Next.js. For persistent storage, you'll need to set up the KV environment variables.
 
-To learn more about Next.js, take a look at the following resources:
+## Development
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Built with:
+- **Next.js 15** - React framework
+- **TypeScript** - Type safety
+- **Tailwind CSS** - Styling
+- **Vercel KV** - Redis storage
+- **React Hooks** - State management
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Contributing
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Contributions are welcome! Please feel free to submit a Pull Request.
