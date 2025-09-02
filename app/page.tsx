@@ -54,7 +54,7 @@ export default function Home() {
             lastServerTimestampRef.current = serverTimestamp;
             addToast('Content updated from another device', 'info', 2000);
           }
-        } catch (error) {
+        } catch {
           // Silently handle polling errors
         }
       }, 2000); // Poll every 2 seconds when unfocused
@@ -111,7 +111,7 @@ export default function Home() {
       setLastServerTimestamp(timestamp);
       lastServerTimestampRef.current = timestamp;
       addToast('Content loaded', 'success', 1500);
-    } catch (error) {
+    } catch {
       addToast('Failed to load content', 'error', 3000);
     } finally {
       setIsLoading(false);
@@ -140,7 +140,7 @@ export default function Home() {
       } else {
         throw new Error('Failed to save');
       }
-    } catch (error) {
+    } catch {
       addToast('Failed to auto-save', 'error', 3000);
     } finally {
       setIsSaving(false);
@@ -151,7 +151,7 @@ export default function Home() {
     try {
       await navigator.clipboard.writeText(content);
       addToast('Copied to clipboard!', 'success', 2000);
-    } catch (error) {
+    } catch {
       addToast('Failed to copy', 'error', 2000);
     }
   };
@@ -163,7 +163,7 @@ export default function Home() {
       contentRef.current = text;
       setContentSource('user_input');
       addToast('Pasted from clipboard!', 'success', 2000);
-    } catch (error) {
+    } catch {
       addToast('Failed to paste - please paste manually', 'error', 3000);
     }
   };
@@ -226,7 +226,7 @@ export default function Home() {
           <div className="mt-6 p-4 bg-gray-700/50 rounded-lg">
             <h2 className="text-lg font-semibold text-white mb-2">How to use:</h2>
             <ol className="list-decimal list-inside text-gray-300 space-y-1 text-sm">
-              <li>Enter a unique ID (or use 'default') to create your personal clipboard</li>
+              <li>Enter a unique ID (or use &lsquo;default&rsquo;) to create your personal clipboard</li>
               <li>Paste or type content in the text area - it will auto-save</li>
               <li>Access from another device using the same ID</li>
               <li>Content syncs automatically between devices</li>

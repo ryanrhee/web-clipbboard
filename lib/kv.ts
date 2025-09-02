@@ -16,7 +16,7 @@ export async function getClipboard(id: string): Promise<ClipboardData> {
       return value || { content: '', timestamp: 0 };
     }
   } catch (error) {
-    console.warn('KV not available, using in-memory storage');
+    console.warn('KV not available, using in-memory storage', error);
   }
   
   // Fallback to in-memory storage
@@ -37,7 +37,7 @@ export async function setClipboard(id: string, content: string): Promise<void> {
       return;
     }
   } catch (error) {
-    console.warn('KV not available, using in-memory storage');
+    console.warn('KV not available, using in-memory storage', error);
   }
   
   // Fallback to in-memory storage

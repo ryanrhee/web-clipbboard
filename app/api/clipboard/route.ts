@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     await setClipboard(id, content);
     
     return NextResponse.json({ success: true, message: 'Content saved' });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Failed to save content' },
       { status: 400 }
