@@ -21,79 +21,6 @@ export default function Home() {
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toasts, addToast, removeToast } = useToast();
 
-  // Load content on mount and when ID changes
-  useEffect(() => {
-    loadContent();
-    
-    // Start polling for changes from other devices
-    const startPolling = () => {
-      pollIntervalRef.current = setInterval(async () => {
-        // Only poll when window is not focused to avoid race conditions
-        if (document.hasFocus()) return;
-        
-        try {
-          const response = await fetch(`/api/clipboard?id=${clipboardId}`);
-          const data = await response.json();
-          const serverContent = data.content ?? '';
-          const serverTimestamp = data.timestamp || 0;
-          
-          setClipboardState(prevState => {
-            console.log('Polling check:', new Date().toISOString(), {
-              serverContent,
-              serverTimestamp,
-              lastServerTimestamp: prevState.lastServerTimestamp,
-              currentContent: prevState.content,
-              contentSource: prevState.contentSource,
-              focused: document.hasFocus(),
-              timestampNewer: serverTimestamp > prevState.lastServerTimestamp,
-              contentDifferent: serverContent !== prevState.content,
-              willUpdate: serverTimestamp > prevState.lastServerTimestamp && serverContent !== prevState.content
-            });
-            
-            // Only update if server has newer timestamp and content is different
-            if (serverTimestamp > prevState.lastServerTimestamp && serverContent !== prevState.content) {
-              console.log('Updating content from server:', serverContent);
-              addToast('Content updated from another device', 'info', 2000);
-              return {
-                content: serverContent,
-                contentSource: 'server',
-                lastServerTimestamp: serverTimestamp,
-              };
-            }
-            
-            return prevState;
-          });
-        } catch {
-          // Silently handle polling errors
-        }
-      }, 2000); // Poll every 2 seconds when unfocused
-    };
-    
-    startPolling();
-    
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-    };
-  }, [clipboardId, loadContent, addToast]);
-
-  // Auto-save content when it changes (only for user input)
-  const autoSave = useCallback((newContent: string) => {
-    console.log('Auto-save triggered for user input:', newContent);
-    
-    // Clear existing timeout
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-    
-    // Set new timeout for auto-save (debounced)
-    saveTimeoutRef.current = setTimeout(() => {
-      console.log('Auto-saving content:', newContent);
-      saveContent(newContent);
-    }, 500); // Save after 500ms of no typing
-  }, [saveContent]);
-
   const loadContent = useCallback(async () => {
     console.log('🔥 Loading content for clipboardId:', clipboardId, 'call #', Date.now());
     
@@ -157,6 +84,80 @@ export default function Home() {
       setIsSaving(false);
     }
   }, [clipboardId, addToast]);
+
+  // Auto-save content when it changes (only for user input)
+  const autoSave = useCallback((newContent: string) => {
+    console.log('Auto-save triggered for user input:', newContent);
+    
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    // Set new timeout for auto-save (debounced)
+    saveTimeoutRef.current = setTimeout(() => {
+      console.log('Auto-saving content:', newContent);
+      saveContent(newContent);
+    }, 500); // Save after 500ms of no typing
+  }, [saveContent]);
+
+  // Load content on mount and when ID changes
+  useEffect(() => {
+    loadContent();
+    
+    // Start polling for changes from other devices
+    const startPolling = () => {
+      pollIntervalRef.current = setInterval(async () => {
+        // Only poll when window is not focused to avoid race conditions
+        if (document.hasFocus()) return;
+        
+        try {
+          const response = await fetch(`/api/clipboard?id=${clipboardId}`);
+          const data = await response.json();
+          const serverContent = data.content ?? '';
+          const serverTimestamp = data.timestamp || 0;
+          
+          setClipboardState(prevState => {
+            console.log('Polling check:', new Date().toISOString(), {
+              serverContent,
+              serverTimestamp,
+              lastServerTimestamp: prevState.lastServerTimestamp,
+              currentContent: prevState.content,
+              contentSource: prevState.contentSource,
+              focused: document.hasFocus(),
+              timestampNewer: serverTimestamp > prevState.lastServerTimestamp,
+              contentDifferent: serverContent !== prevState.content,
+              willUpdate: serverTimestamp > prevState.lastServerTimestamp && serverContent !== prevState.content
+            });
+            
+            // Only update if server has newer timestamp and content is different
+            if (serverTimestamp > prevState.lastServerTimestamp && serverContent !== prevState.content) {
+              console.log('Updating content from server:', serverContent);
+              addToast('Content updated from another device', 'info', 2000);
+              return {
+                content: serverContent,
+                contentSource: 'server',
+                lastServerTimestamp: serverTimestamp,
+              };
+            }
+            
+            return prevState;
+          });
+        } catch {
+          // Silently handle polling errors
+        }
+      }, 2000); // Poll every 2 seconds when unfocused
+    };
+    
+    startPolling();
+    
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [clipboardId, loadContent, addToast]);
+
 
 
   // Debug: Log current state
